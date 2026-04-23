@@ -28,4 +28,31 @@ document.addEventListener('DOMContentLoaded', () => {
             updateIcons(newTheme);
         });
     });
+
+    // --- LOGICA PENTRU MENIU MOBIL ---
+    const menuToggle = document.querySelector('.menu-toggle');
+    const navLinks = document.querySelector('.nav-links');
+
+    if (menuToggle && navLinks) {
+        menuToggle.addEventListener('click', () => {
+            menuToggle.classList.toggle('open');
+            navLinks.classList.toggle('open');
+        });
+
+        // Închide meniul când se dă click pe un link (util pentru SPA sau pentru feedback vizual)
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                menuToggle.classList.remove('open');
+                navLinks.classList.remove('open');
+            });
+        });
+
+        // Închide meniul dacă se dă click în afara lui
+        document.addEventListener('click', (e) => {
+            if (!menuToggle.contains(e.target) && !navLinks.contains(e.target)) {
+                menuToggle.classList.remove('open');
+                navLinks.classList.remove('open');
+            }
+        });
+    }
 });
