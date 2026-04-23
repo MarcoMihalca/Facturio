@@ -46,6 +46,48 @@
             <p>Toate facturile generate, într-un singur loc</p>
         </div>
 
+        <!-- Filters & Search -->
+        <div class="card filters-card">
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label for="searchClient">Căutare client</label>
+                    <div class="input-with-icon">
+                        <span class="input-icon">🔍</span>
+                        <input type="text" id="searchClient" placeholder="Nume client...">
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label for="filterDate">Perioadă</label>
+                    <select id="filterDate">
+                        <option value="all">Toate facturile</option>
+                        <option value="today">Astăzi</option>
+                        <option value="thisMonth">Luna aceasta</option>
+                        <option value="last3Months">Ultimele 3 luni</option>
+                        <option value="last6Months">Ultimele 6 luni</option>
+                        <option value="thisYear">Anul acesta</option>
+                        <option value="custom">Perioadă custom...</option>
+                    </select>
+                </div>
+                <div class="filter-group" id="customDateGroup" style="display: none;">
+                    <label>Interval Custom</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="date" id="startDate" title="De la">
+                        <input type="date" id="endDate" title="Până la">
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label for="sortBy">Sortează după</label>
+                    <select id="sortBy">
+                        <option value="dateDesc">Dată (Cea mai recentă)</option>
+                        <option value="dateAsc">Dată (Cea mai veche)</option>
+                        <option value="totalDesc">Sumă (Mare → Mică)</option>
+                        <option value="totalAsc">Sumă (Mică → Mare)</option>
+                        <option value="clientAsc">Client (A-Z)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <!-- Stats -->
         <div class="stats-row">
             <div class="stat-card">

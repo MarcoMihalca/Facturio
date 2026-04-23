@@ -26,59 +26,140 @@ document.getElementById('btnLogout').addEventListener('click', async () => {
 });
 
 // ============ ÎNCĂRCARE FACTURI ============
+let allInvoices = [];
+
 async function loadInvoices() {
     try {
         const res = await fetch('/api/invoices');
         if (!res.ok) throw new Error('Eroare la încărcare');
-        const invoices = await res.json();
-
-        // Stats
-        const now = new Date();
-        const thisMonth = invoices.filter(inv => {
-            const d = new Date(inv.data_emitere);
-            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-        });
-        const totalSum = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
-
-        document.getElementById('statTotal').textContent = invoices.length;
-        document.getElementById('statMonth').textContent = thisMonth.length;
-        document.getElementById('statSum').textContent = `${totalSum.toFixed(2)} RON`;
-        document.getElementById('invoiceCount').textContent = `${invoices.length} facturi găsite`;
-
-        // Tabel
-        const tbody = document.getElementById('invoiceRows');
-        const emptyState = document.getElementById('emptyState');
-        const tableWrapper = document.getElementById('tableWrapper');
-
-        if (invoices.length === 0) {
-            emptyState.style.display = 'block';
-            tableWrapper.style.display = 'none';
-            return;
-        }
-
-        emptyState.style.display = 'none';
-        tableWrapper.style.display = 'block';
-
-        tbody.innerHTML = invoices.map(inv => `
-            <tr>
-                <td><span class="invoice-id" onclick="previewPdf(${inv.id})" style="cursor: pointer; text-decoration: underline; color: #818cf8;" title="Previzualizează PDF">${inv.serie}${inv.numar}</span></td>
-                <td>${inv.client_nume || '—'}</td>
-                <td>${formatDate(inv.data_emitere)}</td>
-                <td><span class="invoice-total">${(inv.total || 0).toFixed(2)} RON</span></td>
-                <td>
-                    <div class="action-btns">
-                        <button class="btn-action" title="Descarcă PDF" onclick="downloadPdf(${inv.id})">📥</button>
-                        <button class="btn-action" title="Export XML" onclick="downloadXml(${inv.id})">📄</button>
-                        <button class="btn-action delete" title="Șterge" onclick="deleteInvoice(${inv.id})">🗑️</button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
+        allInvoices = await res.json();
+        
+        applyFilters(); // Prima randare cu filtrele default
     } catch (err) {
         console.error(err);
         document.getElementById('invoiceCount').textContent = 'Eroare la încărcare';
     }
 }
+
+function applyFilters() {
+    const search = document.getElementById('searchClient').value.toLowerCase();
+    const dateFilter = document.getElementById('filterDate').value;
+    const sortBy = document.getElementById('sortBy').value;
+
+    const customGroup = document.getElementById('customDateGroup');
+    if (dateFilter === 'custom') {
+        customGroup.style.display = 'flex';
+    } else {
+        customGroup.style.display = 'none';
+    }
+
+    let filtered = allInvoices.filter(inv => {
+        // Căutare client
+        const matchClient = (inv.client_nume || '').toLowerCase().includes(search);
+        
+        // Filtru dată
+        const invDate = new Date(inv.data_emitere);
+        const now = new Date();
+        let matchDate = true;
+
+        if (dateFilter === 'today') {
+            matchDate = invDate.toDateString() === now.toDateString();
+        } else if (dateFilter === 'thisMonth') {
+            matchDate = invDate.getMonth() === now.getMonth() && invDate.getFullYear() === now.getFullYear();
+        } else if (dateFilter === 'last3Months') {
+            const threeMonthsAgo = new Date();
+            threeMonthsAgo.setMonth(now.getMonth() - 3);
+            matchDate = invDate >= threeMonthsAgo;
+        } else if (dateFilter === 'last6Months') {
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(now.getMonth() - 6);
+            matchDate = invDate >= sixMonthsAgo;
+        } else if (dateFilter === 'thisYear') {
+            matchDate = invDate.getFullYear() === now.getFullYear();
+        } else if (dateFilter === 'custom') {
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+            if (start) {
+                const sDate = new Date(start);
+                sDate.setHours(0,0,0,0);
+                if (invDate < sDate) matchDate = false;
+            }
+            if (end) {
+                const eDate = new Date(end);
+                eDate.setHours(23,59,59,999);
+                if (invDate > eDate) matchDate = false;
+            }
+        }
+
+        return matchClient && matchDate;
+    });
+
+    // Sortare
+    filtered.sort((a, b) => {
+        if (sortBy === 'dateDesc') return new Date(b.data_emitere) - new Date(a.data_emitere);
+        if (sortBy === 'dateAsc') return new Date(a.data_emitere) - new Date(b.data_emitere);
+        if (sortBy === 'totalDesc') return (b.total || 0) - (a.total || 0);
+        if (sortBy === 'totalAsc') return (a.total || 0) - (b.total || 0);
+        if (sortBy === 'clientAsc') return (a.client_nume || '').localeCompare(b.client_nume || '');
+        return 0;
+    });
+
+    renderInvoices(filtered);
+}
+
+function renderInvoices(invoices) {
+    // Stats din setul filtrat
+    const now = new Date();
+    const thisMonthCount = invoices.filter(inv => {
+        const d = new Date(inv.data_emitere);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
+    
+    const totalSum = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+
+    document.getElementById('statTotal').textContent = invoices.length;
+    document.getElementById('statMonth').textContent = thisMonthCount;
+    document.getElementById('statSum').textContent = `${totalSum.toFixed(2)} RON`;
+    document.getElementById('invoiceCount').textContent = `${invoices.length} facturi găsite`;
+
+    // Tabel
+    const tbody = document.getElementById('invoiceRows');
+    const emptyState = document.getElementById('emptyState');
+    const tableWrapper = document.getElementById('tableWrapper');
+
+    if (invoices.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.style.display = 'block';
+        tableWrapper.style.display = 'none';
+        return;
+    }
+
+    emptyState.style.display = 'none';
+    tableWrapper.style.display = 'block';
+
+    tbody.innerHTML = invoices.map(inv => `
+        <tr>
+            <td><span class="invoice-id" onclick="previewPdf(${inv.id})" style="cursor: pointer; text-decoration: underline; color: #818cf8;" title="Previzualizează PDF">${inv.serie}${inv.numar}</span></td>
+            <td>${inv.client_nume || '—'}</td>
+            <td>${formatDate(inv.data_emitere)}</td>
+            <td><span class="invoice-total">${(inv.total || 0).toFixed(2)} RON</span></td>
+            <td>
+                <div class="action-btns">
+                    <button class="btn-action" title="Descarcă PDF" onclick="downloadPdf(${inv.id})">📥</button>
+                    <button class="btn-action" title="Export XML" onclick="downloadXml(${inv.id})">📄</button>
+                    <button class="btn-action delete" title="Șterge" onclick="deleteInvoice(${inv.id})">🗑️</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Event Listeners pentru filtre
+document.getElementById('searchClient').addEventListener('input', applyFilters);
+document.getElementById('filterDate').addEventListener('change', applyFilters);
+document.getElementById('sortBy').addEventListener('change', applyFilters);
+document.getElementById('startDate').addEventListener('change', applyFilters);
+document.getElementById('endDate').addEventListener('change', applyFilters);
 
 function formatDate(dateStr) {
     if (!dateStr) return '—';

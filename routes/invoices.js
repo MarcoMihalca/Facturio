@@ -27,6 +27,9 @@ router.post('/invoices', requireAuth, (req, res) => {
     });
 
     const total = subtotal + totalTVA;
+    
+    // Ștergem orice factură existentă cu aceeași serie și număr pentru acest utilizator (evităm duplicatele)
+    db.prepare('DELETE FROM invoices WHERE user_id = ? AND serie = ? AND numar = ?').run(userId, serie, numar);
 
     // Insert factură
     const insertInvoice = db.prepare(`

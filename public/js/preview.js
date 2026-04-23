@@ -51,28 +51,28 @@ const updatePreview = debounce(async () => {
 
     // HTML replica of the PDF
     const html = `
-        <div style="font-family: Arial, sans-serif; padding: 10px;">
+        <div style="font-family: Arial, sans-serif; padding: 10px; color: var(--preview-text);">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
                 <div>
-                    ${curLogo ? `<img src="${curLogo}" style="max-width: 60px; max-height: 50px;">` : `<div style="font-size: 20px; font-weight: bold; color: #ccc;">FACTURIO</div>`}
+                    ${curLogo ? `<img src="${curLogo}" style="max-width: 60px; max-height: 50px;">` : `<div style="font-size: 20px; font-weight: bold; color: var(--preview-text-muted);">FACTURIO</div>`}
                 </div>
                 <div style="text-align: right;">
-                    <h1 style="margin: 0; font-size: 18px; color: #333;">FACTURĂ</h1>
-                    <p style="margin: 4px 0 0; font-size: 10px; color: #666;">Seria: ${payload.serie || '—'}  |  Nr.: ${payload.numar || '—'}</p>
-                    <p style="margin: 2px 0 0; font-size: 10px; color: #666;">Data: ${payload.dataEmitere || '—'}</p>
+                    <h1 style="margin: 0; font-size: 18px; color: var(--preview-accent);">FACTURĂ</h1>
+                    <p style="margin: 4px 0 0; font-size: 10px; color: var(--preview-text-muted);">Seria: ${payload.serie || '—'}  |  Nr.: ${payload.numar || '—'}</p>
+                    <p style="margin: 2px 0 0; font-size: 10px; color: var(--preview-text-muted);">Data: ${payload.dataEmitere || '—'}</p>
                 </div>
             </div>
 
-            <div style="display: flex; justify-content: space-between; font-size: 10px; border-bottom: 1px solid #ddd; padding-bottom: 15px; margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; font-size: 10px; border-bottom: 1px solid var(--preview-border); padding-bottom: 15px; margin-bottom: 15px;">
                 <div style="width: 45%;">
-                    <h3 style="margin: 0 0 6px; font-size: 11px; color: #333;">FURNIZOR</h3>
+                    <h3 style="margin: 0 0 6px; font-size: 11px; color: var(--preview-accent);">FURNIZOR</h3>
                     <p style="margin: 2px 0;"><strong>${payload.furnizor.nume || '—'}</strong></p>
                     <p style="margin: 2px 0;">CUI: ${payload.furnizor.cui || '—'}</p>
                     <p style="margin: 2px 0;">Reg. Com: ${payload.furnizor.regCom || '—'}</p>
                     <p style="margin: 2px 0;">Str: ${payload.furnizor.adresa || '—'}</p>
                 </div>
                 <div style="width: 45%;">
-                    <h3 style="margin: 0 0 6px; font-size: 11px; color: #333;">CLIENT</h3>
+                    <h3 style="margin: 0 0 6px; font-size: 11px; color: var(--preview-accent);">CLIENT</h3>
                     <p style="margin: 2px 0;"><strong>${payload.client.nume || '—'}</strong></p>
                     <p style="margin: 2px 0;">CUI: ${payload.client.cui || '—'}</p>
                     <p style="margin: 2px 0;">Reg. Com: ${payload.client.regCom || '—'}</p>
@@ -82,7 +82,7 @@ const updatePreview = debounce(async () => {
 
             <table style="width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 20px;">
                 <thead>
-                    <tr style="border-bottom: 1px solid #aaa; text-align: left;">
+                    <tr style="border-bottom: 1px solid var(--preview-text-muted); text-align: left;">
                         <th style="padding: 4px 2px;">Denumire</th>
                         <th style="padding: 4px 2px;">UM</th>
                         <th style="padding: 4px 2px;">Cant.</th>
@@ -116,9 +116,9 @@ const updatePreview = debounce(async () => {
                             </tr>
                         `;
                         if (p.descriere) {
-                            res += `<tr><td colspan="6" style="padding: 0 2px 8px; color: #666; font-style: italic;">${p.descriere.replace(/\n/g, '<br>')}</td></tr>`;
+                            res += `<tr><td colspan="6" style="padding: 0 2px 8px; color: var(--preview-text-muted); font-style: italic;">${p.descriere.replace(/\n/g, '<br>')}</td></tr>`;
                         } else {
-                            res += `<tr><td colspan="6" style="padding-bottom: 2px; border-bottom: 1px dashed #eee;"></td></tr>`;
+                            res += `<tr><td colspan="6" style="padding-bottom: 2px; border-bottom: 1px dashed var(--preview-border);"></td></tr>`;
                         }
                         return res;
                     }).join('')}
@@ -126,16 +126,16 @@ const updatePreview = debounce(async () => {
             </table>
 
             <div style="display: flex; justify-content: flex-end;">
-                <div style="width: 200px; text-align: right; border-top: 1px solid #aaa; padding-top: 10px;">
+                <div style="width: 200px; text-align: right; border-top: 1px solid var(--preview-text-muted); padding-top: 10px;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px;">
-                        <span style="color: #666;">Subtotal f. TVA:</span>
+                        <span style="color: var(--preview-text-muted);">Subtotal f. TVA:</span>
                         <span>${document.getElementById('subtotalDisplay').textContent}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px;">
-                        <span style="color: #666;">Total TVA:</span>
+                        <span style="color: var(--preview-text-muted);">Total TVA:</span>
                         <span>${document.getElementById('tvaDisplay').textContent}</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; font-weight: bold; border-top: 1px solid #eee; padding-top: 6px;">
+                    <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; font-weight: bold; border-top: 1px solid var(--preview-border); padding-top: 6px;">
                         <span>TOTAL PLATA:</span>
                         <span>${document.getElementById('totalDisplay').textContent}</span>
                     </div>

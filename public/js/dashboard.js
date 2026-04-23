@@ -32,8 +32,26 @@ const scadenta = new Date(today);
 scadenta.setDate(scadenta.getDate() + 30);
 document.getElementById('dataScadenta').value = scadenta.toISOString().split('T')[0];
 
-const savedNumber = localStorage.getItem('facturio_lastNumber');
-document.getElementById('numarFact').value = String(savedNumber ? parseInt(savedNumber) + 1 : 1).padStart(4, '0');
+// Verificăm istoricul pentru a seta următorul număr de factură (Auto-increment)
+fetch('/api/invoices')
+    .then(r => r.json())
+    .then(invoices => {
+        if (invoices && invoices.length > 0) {
+            const numbers = invoices.map(inv => parseInt(inv.numar)).filter(n => !isNaN(n));
+            if (numbers.length > 0) {
+                const maxNum = Math.max(...numbers);
+                document.getElementById('numarFact').value = String(maxNum + 1).padStart(4, '0');
+            } else {
+                document.getElementById('numarFact').value = '0001';
+            }
+        } else {
+            document.getElementById('numarFact').value = '0001';
+        }
+        if (window.updatePreview) window.updatePreview();
+    })
+    .catch(() => {
+        document.getElementById('numarFact').value = '0001';
+    });
 
 // ============ TOAST ============
 function showToast(message, type = 'success') {

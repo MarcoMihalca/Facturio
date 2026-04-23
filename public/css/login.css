@@ -583,6 +583,7 @@ body {
 /* ============ LIGHT MODE ============ */
 [data-theme="light"] body {
     background: #f8fafc;
+    color: #0f172a;
 }
 
 [data-theme="light"] .bg-gradient {
@@ -608,13 +609,14 @@ body {
 }
 
 [data-theme="light"] .logo h1, [data-theme="light"] .intro-logo h1 {
-    background: linear-gradient(135deg, #1e293b, #334155);
+    background: linear-gradient(135deg, #000000, #1e293b);
     -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent; /* Fix: ensures gradient is visible */
     background-clip: text;
 }
 
 [data-theme="light"] .logo p, [data-theme="light"] .intro-logo p {
-    color: #64748b;
+    color: #334155; /* Darker than #64748b */
 }
 
 [data-theme="light"] .form-group label {
@@ -648,7 +650,7 @@ body {
 [data-theme="light"] .btn-intro {
     background: #ffffff;
     border: 1px solid #cbd5e1;
-    color: #475569;
+    color: #1e293b; /* Darker than #475569 */
 }
 
 [data-theme="light"] .btn-intro:hover {
@@ -660,7 +662,7 @@ body {
 [data-theme="light"] .btn-intro.accent {
     background: rgba(99, 102, 241, 0.1);
     border-color: rgba(99, 102, 241, 0.3);
-    color: #4f46e5;
+    color: #3730a3; /* Darker than #4f46e5 */
 }
 
 [data-theme="light"] .btn-intro.accent:hover {
@@ -671,7 +673,7 @@ body {
 }
 
 [data-theme="light"] .intro-divider {
-    color: #94a3b8;
+    color: #64748b;
 }
 
 [data-theme="light"] .intro-divider::before, [data-theme="light"] .intro-divider::after {

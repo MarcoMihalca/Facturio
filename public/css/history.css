@@ -6,6 +6,77 @@
     margin-bottom: 24px;
 }
 
+/* Filters Card */
+.filters-card {
+    margin-bottom: 24px;
+    padding: 20px;
+    animation: cardAppear 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: 0.05s;
+}
+
+.filters-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 20px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.filter-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(148, 163, 184, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.filter-group select,
+.filter-group input {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 10px 14px;
+    color: #e2e8f0;
+    font-size: 14px;
+    transition: all 0.3s;
+    outline: none;
+}
+
+.filter-group select:focus,
+.filter-group input:focus {
+    border-color: rgba(99, 102, 241, 0.5);
+    background: rgba(99, 102, 241, 0.05);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+.input-with-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-icon {
+    position: absolute;
+    left: 12px;
+    font-size: 14px;
+    opacity: 0.5;
+}
+
+.input-with-icon input {
+    padding-left: 36px;
+    width: 100%;
+}
+
+@media (max-width: 850px) {
+    .filters-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .stat-card {
     background: rgba(15, 15, 35, 0.7);
     backdrop-filter: blur(40px);
@@ -230,4 +301,72 @@
     .action-btns {
         flex-wrap: wrap;
     }
+}
+
+/* ============ LIGHT MODE ============ */
+[data-theme="light"] .stat-card {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+}
+
+[data-theme="light"] .stat-value {
+    color: #0f172a;
+}
+
+[data-theme="light"] .stat-label {
+    color: #64748b;
+}
+
+[data-theme="light"] .stat-card.accent {
+    background: rgba(99, 102, 241, 0.05);
+}
+
+[data-theme="light"] .history-table thead th {
+    color: #64748b;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .history-table tbody tr {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .history-table tbody tr:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="light"] .history-table td {
+    color: #1e293b;
+}
+
+[data-theme="light"] .invoice-total {
+    color: #0f172a;
+}
+
+[data-theme="light"] .btn-action {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    color: #64748b;
+}
+
+[data-theme="light"] .btn-action:hover {
+    background: rgba(99, 102, 241, 0.1);
+    color: #4f46e5;
+}
+
+[data-theme="light"] .empty-state h3 {
+    color: #0f172a;
+}
+
+[data-theme="light"] .filter-group select,
+[data-theme="light"] .filter-group input {
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    color: #1e293b;
+}
+
+[data-theme="light"] .filter-group select:focus,
+[data-theme="light"] .filter-group input:focus {
+    background: #fff;
+    border-color: #6366f1;
 }
