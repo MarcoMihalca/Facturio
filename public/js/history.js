@@ -1,32 +1,31 @@
-// ============ AUTENTIFICARE ============
-// ============ AUTENTIFICARE ============
-const cachedUser = sessionStorage.getItem('facturio_user');
-if (cachedUser) document.getElementById('displayUser').textContent = cachedUser;
-
-fetch('/api/me')
-    .then(r => { if (!r.ok) window.location.href = '/login.html'; return r.json(); })
-    .then(data => { 
-        if (data.username) {
-            sessionStorage.setItem('facturio_user', data.username);
-            document.getElementById('displayUser').textContent = data.username; 
-        }
-        fetch('/api/avatar').then(res => {
-            if (res.ok) {
-                const avatarEl = document.querySelector('.user-avatar');
-                const v = localStorage.getItem('avatar_v') || '1';
-                if (avatarEl) avatarEl.innerHTML = `<img src="/api/avatar?v=${v}" alt="Avatar">`;
-            }
-        });
-    })
-    .catch(() => window.location.href = '/login.html');
-
-document.getElementById('btnLogout').addEventListener('click', async () => {
-    await fetch('/api/logout', { method: 'POST' });
-    window.location.href = '/login.html';
-});
 
 // ============ ÎNCĂRCARE FACTURI ============
 let allInvoices = [];
+
+function toDateOnly(value) {
+    const date = new Date(value);
+    date.setHours(0, 0, 0, 0);
+    return date;
+}
+
+function getInvoiceStatus(invoice) {
+    if (!invoice.data_scadenta) return 'În termen';
+
+    const today = toDateOnly(new Date());
+    const dueDate = toDateOnly(invoice.data_scadenta);
+    return dueDate < today ? 'Întârziată' : 'În termen';
+}
+
+function getStatusOrder(status) {
+    return status === 'Întârziată' ? 0 : 1;
+}
+
+function getStatusBadge(status) {
+    if (status === 'Întârziată') {
+        return '<span class="invoice-status late">Întârziată</span>';
+    }
+    return '<span class="invoice-status on-time">În termen</span>';
+}
 
 async function loadInvoices() {
     try {
@@ -101,6 +100,16 @@ function applyFilters() {
         if (sortBy === 'totalDesc') return (b.total || 0) - (a.total || 0);
         if (sortBy === 'totalAsc') return (a.total || 0) - (b.total || 0);
         if (sortBy === 'clientAsc') return (a.client_nume || '').localeCompare(b.client_nume || '');
+        if (sortBy === 'statusLateFirst') {
+            const statusDiff = getStatusOrder(getInvoiceStatus(a)) - getStatusOrder(getInvoiceStatus(b));
+            if (statusDiff !== 0) return statusDiff;
+            return new Date(b.data_emitere) - new Date(a.data_emitere);
+        }
+        if (sortBy === 'statusOnTimeFirst') {
+            const statusDiff = getStatusOrder(getInvoiceStatus(b)) - getStatusOrder(getInvoiceStatus(a));
+            if (statusDiff !== 0) return statusDiff;
+            return new Date(b.data_emitere) - new Date(a.data_emitere);
+        }
         return 0;
     });
 
@@ -137,12 +146,15 @@ function renderInvoices(invoices) {
     emptyState.style.display = 'none';
     tableWrapper.style.display = 'block';
 
-    tbody.innerHTML = invoices.map(inv => `
+    tbody.innerHTML = invoices.map(inv => {
+        const status = getInvoiceStatus(inv);
+        return `
         <tr>
             <td><span class="invoice-id" onclick="previewPdf(${inv.id})" style="cursor: pointer; text-decoration: underline; color: #818cf8;" title="Previzualizează PDF">${inv.serie}${inv.numar}</span></td>
             <td>${inv.client_nume || '—'}</td>
             <td>${formatDate(inv.data_emitere)}</td>
             <td><span class="invoice-total">${(inv.total || 0).toFixed(2)} RON</span></td>
+            <td>${getStatusBadge(status)}</td>
             <td>
                 <div class="action-btns">
                     <button class="btn-action" title="Descarcă PDF" onclick="downloadPdf(${inv.id})">📥</button>
@@ -151,7 +163,8 @@ function renderInvoices(invoices) {
                 </div>
             </td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // Event Listeners pentru filtre

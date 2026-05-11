@@ -1,26 +1,12 @@
-// ============ AUTENTIFICARE & INITIALIZARE ============
-// ============ AUTENTIFICARE & INITIALIZARE ============
+// ============ INITIALIZARE ============
 const cachedUser = sessionStorage.getItem('facturio_user');
 if (cachedUser) {
-    document.getElementById('displayUser').textContent = cachedUser;
     document.getElementById('profileUsername').textContent = cachedUser;
+} else {
+    fetch('/api/me').then(r=>r.json()).then(data => {
+        if(data.username) document.getElementById('profileUsername').textContent = data.username;
+    }).catch(e => console.error(e));
 }
-
-fetch('/api/me')
-    .then(r => { if (!r.ok) window.location.href = '/login.html'; return r.json(); })
-    .then(data => { 
-        if (data.username) {
-            sessionStorage.setItem('facturio_user', data.username);
-            document.getElementById('displayUser').textContent = data.username; 
-            document.getElementById('profileUsername').textContent = data.username;
-        }
-    })
-    .catch(() => window.location.href = '/login.html');
-
-document.getElementById('btnLogout').addEventListener('click', async () => {
-    await fetch('/api/logout', { method: 'POST' });
-    window.location.href = '/login.html';
-});
 
 // ============ TOAST ============
 function showToast(message, type = 'success') {
@@ -144,3 +130,5 @@ btnRemoveStandardLogo.addEventListener('click', async () => {
         showToast('Eroare la ștergere logo.', 'error');
     }
 });
+
+// Nu mai avem setări de dashboard aici

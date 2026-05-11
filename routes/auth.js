@@ -7,7 +7,8 @@ const db = require('../config/database');
 router.post('/login', (req, res) => {
     const { username, password } = req.body;
     
-    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    // Case-insensitive lookup
+    const user = db.prepare('SELECT * FROM users WHERE LOWER(username) = LOWER(?)').get(username);
 
     if (user && bcrypt.compareSync(password, user.password)) {
         req.session.user = { id: user.id, username: user.username };
@@ -20,8 +21,8 @@ router.post('/login', (req, res) => {
 router.post('/register', (req, res) => {
     const { username, password } = req.body;
     
-    // Check if user already exists
-    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    // Check if user already exists (case-insensitive)
+    const existing = db.prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?)').get(username);
     if (existing) {
         return res.status(400).json({ success: false, message: 'Numele de utilizator este deja folosit.' });
     }

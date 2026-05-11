@@ -696,6 +696,10 @@ body {
     z-index: 100;
     display: inline-flex;
 }
+
+.theme-toggle-wrapper .toggle-switch {
+    margin-left: 59px !important;
+}
 .theme-toggle-btn {
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.06);

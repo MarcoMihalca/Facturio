@@ -5,27 +5,20 @@ const currentTheme = localStorage.getItem('theme') || 'dark';
 document.documentElement.setAttribute('data-theme', currentTheme);
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Găsește butonul (butoanele) de toggle
-    const toggleBtns = document.querySelectorAll('.theme-toggle-btn');
+    // Găsește checkbox-urile de toggle (slider)
+    const toggleCheckboxes = document.querySelectorAll('.theme-toggle-checkbox');
     
-    // Setează iconița corectă la start
-    const updateIcons = (theme) => {
-        toggleBtns.forEach(btn => {
-            btn.innerHTML = theme === 'dark' ? '☀️' : '🌙';
-        });
-    };
-    
-    updateIcons(currentTheme);
-
-    // Event listener pentru fiecare buton de toggle
-    toggleBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            
+    // Setează starea curentă
+    toggleCheckboxes.forEach(checkbox => {
+        checkbox.checked = (currentTheme === 'dark');
+        
+        checkbox.addEventListener('change', (e) => {
+            const newTheme = e.target.checked ? 'dark' : 'light';
             document.documentElement.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
-            updateIcons(newTheme);
+            
+            // Sincronizează toate sliderele (dacă există mai multe pe pagină)
+            toggleCheckboxes.forEach(cb => cb.checked = e.target.checked);
         });
     });
 

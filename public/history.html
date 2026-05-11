@@ -16,34 +16,9 @@
     <div class="bg-gradient"></div>
     <div class="grid-pattern"></div>
 
-    <!-- Navbar -->
-    <nav class="navbar">
-        <a href="/" class="nav-brand" style="text-decoration: none; cursor: pointer;">
-            <div class="nav-logo">📄</div>
-            <span class="nav-title">Facturio</span>
-        </a>
-        <div class="nav-links">
-            <a href="/" class="nav-link">＋ Factură nouă</a>
-            <a href="/history.html" class="nav-link active">📁 Istoric</a>
-            <a href="/profile.html" class="nav-link mobile-only">👤 Contul meu</a>
-        </div>
-        <div class="nav-user">
-            <div class="theme-toggle-wrapper">
-                <button class="theme-toggle-btn" title="Schimbă tema"></button>
-                <div class="theme-tooltip">Vrei sa incerci aceeasi experienta pe care o iubesti, dar putin diferita? :)</div>
-            </div>
-            <a href="/profile.html" class="user-info" style="text-decoration: none;">
-                <div class="user-avatar">👤</div>
-                <span class="user-name" id="displayUser">—</span>
-            </a>
-            <button class="btn-logout" id="btnLogout">Deconectare</button>
-        </div>
-        <button class="menu-toggle" id="menuToggle">
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
-    </nav>
+    <!-- Navbar Placeholder -->
+    <div id="navbar-placeholder"></div>
+    <script src="/js/navbar.js"></script>
 
     <!-- Main Content -->
     <main class="main">
@@ -89,6 +64,8 @@
                         <option value="totalDesc">Sumă (Mare → Mică)</option>
                         <option value="totalAsc">Sumă (Mică → Mare)</option>
                         <option value="clientAsc">Client (A-Z)</option>
+                        <option value="statusLateFirst">Status (Întârziată întâi)</option>
+                        <option value="statusOnTimeFirst">Status (În termen întâi)</option>
                     </select>
                 </div>
             </div>
@@ -124,7 +101,7 @@
                 <div class="empty-icon">📭</div>
                 <h3>Nicio factură încă</h3>
                 <p>Creează prima ta factură pentru a o vedea aici</p>
-                <a href="/" class="btn-create">＋ Creează factură</a>
+                <a href="/invoice.html" class="btn-create">＋ Creează factură</a>
             </div>
 
             <div class="table-wrapper" id="tableWrapper">
@@ -135,6 +112,7 @@
                             <th>Client</th>
                             <th>Data</th>
                             <th>Total</th>
+                            <th>Status</th>
                             <th>Acțiuni</th>
                         </tr>
                     </thead>

@@ -59,13 +59,57 @@ db.exec(`
         um TEXT DEFAULT 'buc',
         cantitate REAL DEFAULT 1,
         pret_unitar REAL DEFAULT 0,
-        tva_percent REAL DEFAULT 19,
+        tva_percent REAL DEFAULT 21,
         valoare_fara_tva REAL DEFAULT 0,
         valoare_tva REAL DEFAULT 0,
         total REAL DEFAULT 0,
         FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
     );
 `);
+
+// Migrare default TVA de la 19 la 21 pentru baze existente
+const tableInfo = db.prepare('PRAGMA table_info(invoice_items)').all();
+const tvaPercentColumn = tableInfo.find((column) => column.name === 'tva_percent');
+const currentDefault = String(tvaPercentColumn?.dflt_value || '').replace(/'/g, '').trim();
+const usesOldDefault = currentDefault === '19' || currentDefault === '19.0';
+
+if (usesOldDefault) {
+    db.exec(`
+        BEGIN TRANSACTION;
+
+        ALTER TABLE invoice_items RENAME TO invoice_items_old;
+
+        CREATE TABLE invoice_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice_id INTEGER NOT NULL,
+            denumire TEXT NOT NULL,
+            descriere TEXT,
+            um TEXT DEFAULT 'buc',
+            cantitate REAL DEFAULT 1,
+            pret_unitar REAL DEFAULT 0,
+            tva_percent REAL DEFAULT 21,
+            valoare_fara_tva REAL DEFAULT 0,
+            valoare_tva REAL DEFAULT 0,
+            total REAL DEFAULT 0,
+            FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO invoice_items (
+            id, invoice_id, denumire, descriere, um, cantitate,
+            pret_unitar, tva_percent, valoare_fara_tva, valoare_tva, total
+        )
+        SELECT
+            id, invoice_id, denumire, descriere, um, cantitate,
+            pret_unitar, tva_percent, valoare_fara_tva, valoare_tva, total
+        FROM invoice_items_old;
+
+        DROP TABLE invoice_items_old;
+
+        COMMIT;
+    `);
+
+    console.log('✅ Migrare aplicată: default TVA pentru invoice_items este acum 21%.');
+}
 
 // --- Seed utilizatori default (dacă nu există) ---
 const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;

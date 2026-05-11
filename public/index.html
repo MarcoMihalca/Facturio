@@ -4,304 +4,222 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Facturio — Dashboard</title>
-    <meta name="description" content="Facturio - Generează facturi profesionale rapid și ușor.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/js/theme.js"></script>
     <link rel="stylesheet" href="/css/dashboard.css">
     <link rel="stylesheet" href="/css/history.css">
+    <style>
+        /* Extra styles for dashboard */
+        .dash-toggle-wrap { display: flex; align-items: center; gap: 10px; background: rgba(99, 102, 241, 0.1); padding: 8px 16px; border-radius: 8px; }
+        .dash-charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
+        .dash-analytics-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+        .dash-chart-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .dash-chart-card h3 { font-size: 16px; margin-top: 0; margin-bottom: 1rem; color: var(--text-main); }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        .chart-note { margin-top: 10px; font-size: 12px; color: var(--text-subtle, #94a3b8); }
+
+        /* Dashboard dark theme contrast tuning */
+        html:not([data-theme="light"]) body {
+            --text-main: #ecf2ff;
+            --text-subtle: #d2dced;
+            --border-color: rgba(255, 255, 255, 0.16);
+            --bg-card: rgba(18, 20, 42, 0.86);
+            --bg-body: rgba(10, 10, 26, 0.92);
+        }
+
+        html:not([data-theme="light"]) .page-header p,
+        html:not([data-theme="light"]) .stat-label,
+        html:not([data-theme="light"]) .card-header-text p,
+        html:not([data-theme="light"]) .history-table thead th,
+        html:not([data-theme="light"]) .chart-note {
+            color: #cdd8ea !important;
+        }
+
+        html:not([data-theme="light"]) .history-table td {
+            color: #e4ebf7;
+        }
+
+        @media (max-width: 900px) { .dash-charts-grid, .dash-analytics-grid { grid-template-columns: 1fr; } }
+    </style>
 </head>
 <body>
     <div class="bg-gradient"></div>
     <div class="grid-pattern"></div>
 
-    <!-- Navbar -->
-    <nav class="navbar">
-        <a href="/" class="nav-brand" style="text-decoration: none; cursor: pointer;">
-            <div class="nav-logo">📄</div>
-            <span class="nav-title">Facturio</span>
-        </a>
-        <div class="nav-links">
-            <a href="/" class="nav-link active">＋ Factură nouă</a>
-            <a href="/history.html" class="nav-link">📁 Istoric</a>
-            <a href="/profile.html" class="nav-link mobile-only">👤 Contul meu</a>
+    <!-- Navbar Placeholder -->
+    <div id="navbar-placeholder"></div>
+    <script src="/js/navbar.js"></script>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <h2>Dashboard</h2>
+                <p>O privire de ansamblu asupra afacerii tale</p>
+            </div>
+            <div class="dash-toggle-wrap">
+                <span style="font-size: 14px; font-weight: 500;">Interval statistici:</span>
+                <select id="statPeriodToggle" style="padding: 6px 12px; border-radius: 6px; background: var(--bg-body); border: 1px solid var(--border-color); color: var(--text-main); font-family: inherit; cursor: pointer;">
+                    <option value="month" style="color: #000;">Luna Curentă</option>
+                    <option value="3months" style="color: #000;">Ultimele 3 Luni</option>
+                    <option value="6months" style="color: #000;">Ultimele 6 Luni</option>
+                    <option value="year" style="color: #000;">Anul Curent</option>
+                </select>
+            </div>
         </div>
-        <div class="nav-user">
-            <div class="theme-toggle-wrapper">
-                <button class="theme-toggle-btn" title="Schimbă tema"></button>
-                <div class="theme-tooltip">Vrei sa incerci aceeasi experienta pe care o iubesti, dar putin diferita? :)</div>
+
+        <!-- STATS ROW -->
+        <div class="stats-row">
+            <div class="stat-card accent" id="card-total-incasari">
+                <span class="stat-value" id="dashTotalIncasari">0.00 RON</span>
+                <span class="stat-label">Total Încasări</span>
             </div>
-            <a href="/profile.html" class="user-info" style="text-decoration: none;">
-                <div class="user-avatar">👤</div>
-                <span class="user-name" id="displayUser">—</span>
-            </a>
-            <button class="btn-logout" id="btnLogout">Deconectare</button>
+            <div class="stat-card" id="card-total-facturi">
+                <span class="stat-value" id="dashTotalFacturi">0</span>
+                <span class="stat-label">Facturi Emise</span>
+            </div>
+            <div class="stat-card" id="card-total-tva">
+                <span class="stat-value" id="dashTotalTva">0.00 RON</span>
+                <span class="stat-label">TVA Colectat</span>
+            </div>
+            <div class="stat-card" id="card-top-client">
+                <span class="stat-value" id="dashTopClient" style="font-size: 1.25rem;">-</span>
+                <span class="stat-label">Cel Mai Bun Client</span>
+            </div>
         </div>
-        <button class="menu-toggle" id="menuToggle">
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
-    </nav>
 
-    <div class="dashboard-layout">
-        <!-- Main Content -->
-        <main class="main">
-            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h2>Generează Factură</h2>
-                    <p>Completează toate secțiunile și descarcă factura în format PDF</p>
-                </div>
-                <div class="tva-toggle-wrapper desktop-only tooltip-container" style="margin-bottom: 0; padding: 10px 16px; background: rgba(99, 102, 241, 0.08); border-color: rgba(99, 102, 241, 0.2); position: relative; cursor: pointer; z-index: 101;">
-                    <div class="tva-toggle-label" style="margin-right: 15px;">
-                        <span style="font-size: 13px;">Previzualizare Live</span>
+        <!-- CHARTS GRID -->
+        <div class="dash-charts-grid">
+            <div class="dash-chart-card" id="card-revenue-chart">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin: 0;">📈 Evoluție Venituri</h3>
+                    <div class="chart-type-toggle" id="revenueTypeToggle">
+                        <button class="chart-type-btn active" data-type="line" title="Line Chart">📈</button>
+                        <button class="chart-type-btn" data-type="bar" title="Bar Chart">📊</button>
                     </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="desktopPreviewToggle" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <div class="custom-tooltip" onmouseover="this.style.opacity='0'; setTimeout(()=>this.style.display='none', 300)">Nu îți place să previzualizezi? Dezactivează-o chiar aici!</div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+            <div class="dash-chart-card" id="card-clients-chart">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin: 0;">🏆 Top Clienți</h3>
+                    <div class="chart-type-toggle" id="clientsTypeToggle">
+                        <button class="chart-type-btn active" data-type="doughnut" title="Doughnut Chart">🍩</button>
+                        <button class="chart-type-btn" data-type="pie" title="Pie Chart">🥧</button>
+                        <button class="chart-type-btn" data-type="bar" title="Bar Chart">📊</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="clientsChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ADVANCED ANALYTICS -->
+        <div class="dash-analytics-grid">
+            <div class="dash-chart-card" id="card-top-products-chart">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin: 0;">🧾 Top Produse / Servicii Vandute</h3>
+                    <div class="chart-type-toggle" id="topProductsTypeToggle">
+                        <button class="chart-type-btn active" data-type="bar" title="Bar Chart">📊</button>
+                        <button class="chart-type-btn" data-type="pie" title="Pie Chart">🥧</button>
+                        <button class="chart-type-btn" data-type="doughnut" title="Doughnut Chart">🍩</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="topProductsChart"></canvas>
+                </div>
+                <p class="chart-note">Clasament dupa valoarea totala facturata.</p>
+            </div>
+
+            <div class="dash-chart-card" id="card-net-vat-chart">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin: 0;">⚖️ Raport Net vs TVA</h3>
+                    <div class="chart-type-toggle" id="netVatTypeToggle">
+                        <button class="chart-type-btn active" data-type="doughnut" title="Doughnut Chart">🍩</button>
+                        <button class="chart-type-btn" data-type="pie" title="Pie Chart">🥧</button>
+                        <button class="chart-type-btn" data-type="bar" title="Bar Chart">📊</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="netVsVatChart"></canvas>
+                </div>
+                <p class="chart-note">Total net comparat cu TVA colectat din facturi.</p>
+            </div>
+
+            <div class="dash-chart-card" id="card-year-comparison-chart">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin: 0;">📅 Comparatie An Curent vs Anul Trecut</h3>
+                    <div class="chart-type-toggle" id="yearComparisonTypeToggle">
+                        <button class="chart-type-btn active" data-type="bar" title="Bar Chart">📊</button>
+                        <button class="chart-type-btn" data-type="line" title="Line Chart">📈</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="yearComparisonChart"></canvas>
+                </div>
+                <p class="chart-note">Evolutie lunara a totalurilor facturate.</p>
+            </div>
+
+            <div class="dash-chart-card" id="card-status-distribution-chart">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin: 0;">📌 Distributie Dupa Status</h3>
+                    <div class="chart-type-toggle" id="statusDistributionTypeToggle">
+                        <button class="chart-type-btn active" data-type="pie" title="Pie Chart">🥧</button>
+                        <button class="chart-type-btn" data-type="doughnut" title="Doughnut Chart">🍩</button>
+                        <button class="chart-type-btn" data-type="bar" title="Bar Chart">📊</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="statusDistributionChart"></canvas>
+                </div>
+                <p class="chart-note">Statusuri calculate pe baza scadentei facturilor.</p>
+            </div>
+        </div>
+
+        <!-- RECENT INVOICES -->
+        <div class="card" id="card-recent-invoices" style="margin-top: 1.5rem;">
+            <div class="card-header">
+                <div class="card-icon" style="background: rgba(99,102,241,0.15)">📋</div>
+                <div class="card-header-text">
+                    <h3>Ultimele Facturi</h3>
+                    <p id="recentInvoicesSubtitle">Ultimele X facturi generate</p>
                 </div>
             </div>
 
-            <form id="invoiceForm">
-
-                <!-- DETALII FACTURĂ -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-icon detalii">📋</div>
-                        <div class="card-header-text">
-                            <h3>Detalii Factură</h3>
-                            <p>Serie, număr și date</p>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="serieFact">Serie factură</label>
-                            <input type="text" id="serieFact" placeholder="ex: FCT" value="FCT" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="numarFact">Număr factură</label>
-                            <input type="text" id="numarFact" placeholder="ex: 001" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="dataEmitere">Data emiterii</label>
-                            <input type="date" id="dataEmitere" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="dataScadenta">Data scadenței</label>
-                            <input type="date" id="dataScadenta" required>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- FURNIZOR -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-icon furnizor">🏢</div>
-                        <div class="card-header-text">
-                            <h3>Date Furnizor</h3>
-                            <p>Informațiile companiei tale</p>
-                        </div>
-                    </div>
-
-                    <!-- Logo Upload -->
-                    <div class="logo-upload-area" id="logoUploadArea">
-                        <div class="logo-preview" id="logoPreview">
-                            <span class="logo-placeholder">🖼️</span>
-                            <span class="logo-text">Logo</span>
-                        </div>
-                        <div class="logo-actions">
-                            <p class="logo-upload-title">Logo-ul companiei tale?</p>
-                            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                                <label class="btn-upload" for="logoInput">
-                                    📤 Încarcă logo temporar
-                                    <input type="file" id="logoInput" accept=".png,.jpg,.jpeg,.svg" hidden>
-                                </label>
-                                <button type="button" class="btn-remove-logo" id="btnRemoveLogo" style="display:none">✕ Șterge</button>
-                            </div>
-                            <p class="logo-upload-hint">
-                                Te-ai săturat să încarci același logo de fiecare dată? 
-                                <a href="/profile.html" style="color: #818cf8; text-decoration: underline;">Selectează un logo standard din pagina de profil!</a>
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="furnNume">Denumire firmă</label>
-                            <input type="text" id="furnNume" placeholder="ex: SC Exemplu SRL" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="furnCUI">CUI</label>
-                            <input type="text" id="furnCUI" placeholder="ex: RO12345678" pattern="^(RO|ro)?[0-9]{2,10}$" inputmode="text" minlength="2" maxlength="12" title="Introduceți CUI-ul (opțional cu RO în față, urmat de 2-10 cifre)" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="furnRegCom">Nr. Reg. Comerț</label>
-                            <input type="text" id="furnRegCom" placeholder="ex: J40/1234/2020">
-                        </div>
-                        <div class="form-group">
-                            <label for="furnAdresa">Adresă</label>
-                            <input type="text" id="furnAdresa" placeholder="ex: Str. Principală, Nr. 1, București">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="furnIBAN">IBAN</label>
-                            <input type="text" id="furnIBAN" placeholder="ex: RO49AAAA1B31007593840000">
-                        </div>
-                        <div class="form-group">
-                            <label for="furnBanca">Banca</label>
-                            <input type="text" id="furnBanca" placeholder="ex: Banca Transilvania">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- CLIENT -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-icon client">👤</div>
-                        <div class="card-header-text">
-                            <h3>Date Client</h3>
-                            <p>Informațiile clientului</p>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="clientNume">Denumire client</label>
-                            <input type="text" id="clientNume" placeholder="ex: SC Client SRL" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="clientCUI">CUI</label>
-                            <input type="text" id="clientCUI" placeholder="ex: RO87654321" pattern="^(RO|ro)?[0-9]{2,10}$" inputmode="text" minlength="2" maxlength="12" title="Introduceți CUI-ul (opțional cu RO în față, urmat de 2-10 cifre)">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="clientRegCom">Nr. Reg. Comerț</label>
-                            <input type="text" id="clientRegCom" placeholder="ex: J40/5678/2021">
-                        </div>
-                        <div class="form-group">
-                            <label for="clientAdresa">Adresă</label>
-                            <input type="text" id="clientAdresa" placeholder="ex: Bd. Libertății, Nr. 5, Cluj">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="clientEmail">Email client (pentru trimitere factură)</label>
-                        <input type="email" id="clientEmail" placeholder="ex: client@email.com">
-                    </div>
-                </div>
-
-                <!-- PRODUSE / SERVICII -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-icon produse">🛒</div>
-                        <div class="card-header-text">
-                            <h3>Produse / Servicii</h3>
-                            <p>Adaugă produsele sau serviciile facturate</p>
-                        </div>
-                    </div>
-
-                    <div class="tva-toggle-wrapper" id="tvaToggleWrapper">
-                        <div class="tva-toggle-label">
-                            <span>Prețurile includ TVA</span>
-                            <span id="tvaToggleHint">TVA-ul va fi adăugat la prețul introdus</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="pretCuTVA">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-
-                    <div style="overflow-x: auto;">
-                        <table class="products-table" id="productsTable">
-                            <thead>
-                                <tr>
-                                    <th style="min-width:200px">Denumire</th>
-                                    <th style="min-width:80px">UM</th>
-                                    <th style="min-width:80px">Cant.</th>
-                                    <th style="min-width:100px">Preț unit.</th>
-                                    <th style="min-width:80px">TVA %</th>
-                                    <th style="min-width:90px">Valoare</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody id="productRows">
-                                <!-- Rânduri generate din JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                    <button type="button" class="btn-add-row" id="btnAddRow">
-                        <span>＋</span> Adaugă produs
-                    </button>
-                </div>
-
-                <!-- TOTALURI + ACȚIUNI -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-icon total">💰</div>
-                        <div class="card-header-text">
-                            <h3>Totaluri</h3>
-                            <p>Calculare automată</p>
-                        </div>
-                    </div>
-                    <div class="totals-grid">
-                        <div class="total-row">
-                            <span class="total-row-label">Subtotal (fără TVA)</span>
-                            <span class="total-row-value" id="subtotalDisplay">0.00 RON</span>
-                        </div>
-                        <div class="total-row">
-                            <span class="total-row-label">TVA total</span>
-                            <span class="total-row-value" id="tvaDisplay">0.00 RON</span>
-                        </div>
-                        <div class="total-row grand">
-                            <span class="total-row-label">Total de plată</span>
-                            <span class="total-row-value" id="totalDisplay">0.00 RON</span>
-                        </div>
-                    </div>
-
-                    <!-- Butoane acțiuni -->
-                    <div class="actions-row">
-                        <button type="submit" class="btn-generate" id="btnGenerate">
-                            <span>📥 Descarcă PDF</span>
-                        </button>
-                        <button type="button" class="btn-xml" id="btnExportXml">
-                            <span>📄 Export XML e-Factura</span>
-                        </button>
-                        <button type="button" class="btn-email" id="btnSendEmail">
-                            <span>📧 Trimite pe email</span>
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </main>
-
-        <!-- PREVIEW PANEL -->
-        <aside class="preview-panel" id="previewPanel">
-            <div class="preview-header">
-                <h3>👁️ Previzualizare</h3>
-                <button class="btn-toggle-preview" id="btnTogglePreview" title="Închide preview">✕</button>
+            <div class="empty-state" id="emptyState" style="display:none; margin: 2rem 0;">
+                <div class="empty-icon">📭</div>
+                <h3>Nicio factură încă</h3>
+                <a href="/invoice.html" class="btn-create" style="margin-top: 1rem; display: inline-block;">＋ Creează factură</a>
             </div>
-            <div class="preview-content" id="previewContent">
-                <div class="preview-page">
-                    <p class="preview-placeholder">Completează formularul pentru a vedea previzualizarea</p>
+
+            <div class="table-wrapper" id="tableWrapper">
+                <table class="history-table" id="recentInvoicesTable">
+                    <thead>
+                        <tr>
+                            <th>Serie/Nr.</th>
+                            <th>Client</th>
+                            <th>Data</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentInvoicesRows">
+                        <!-- Generat din JS -->
+                    </tbody>
+                </table>
+                <div style="text-align: center; margin-top: 1rem;">
+                    <a href="/history.html" style="color: #818cf8; text-decoration: none; font-weight: 500;">Vezi tot istoricul →</a>
                 </div>
             </div>
-        </aside>
-    </div>
-
-    <!-- Floating preview button (mobil) -->
-    <button class="btn-float-preview" id="btnFloatPreview" title="Previzualizare">👁️</button>
-
-    <!-- Toast notification -->
-    <div class="toast" id="toast"></div>
+        </div>
+    </main>
 
     <script src="/js/dashboard.js"></script>
-    <script src="/js/preview.js"></script>
 </body>
 </html>

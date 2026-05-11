@@ -95,6 +95,36 @@ router.get('/invoices', requireAuth, (req, res) => {
     res.json(invoices);
 });
 
+// Dashboard analytics (top produse/servicii)
+router.get('/dashboard/analytics', requireAuth, (req, res) => {
+    const userId = req.session.user.id;
+
+    const topProducts = db.prepare(`
+        SELECT
+            ii.denumire AS name,
+            ROUND(SUM(ii.cantitate), 2) AS total_qty,
+            ROUND(SUM(ii.valoare_fara_tva), 2) AS net_amount,
+            ROUND(SUM(ii.valoare_tva), 2) AS vat_amount,
+            ROUND(SUM(ii.total), 2) AS total_amount
+        FROM invoice_items ii
+        INNER JOIN invoices i ON i.id = ii.invoice_id
+        WHERE i.user_id = ?
+        GROUP BY ii.denumire
+        ORDER BY total_amount DESC
+        LIMIT 8
+    `).all(userId);
+
+    res.json({
+        topProducts: topProducts.map((p) => ({
+            name: p.name || 'Necunoscut',
+            totalQty: Number(p.total_qty) || 0,
+            netAmount: Number(p.net_amount) || 0,
+            vatAmount: Number(p.vat_amount) || 0,
+            totalAmount: Number(p.total_amount) || 0,
+        })),
+    });
+});
+
 // Detalii factură (cu produse)
 router.get('/invoices/:id', requireAuth, (req, res) => {
     const userId = req.session.user.id;

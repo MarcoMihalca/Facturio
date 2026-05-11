@@ -37,7 +37,7 @@ app.use('/', pdfRoutes);
 
 // --- Redirecționare pentru pagini protejate (evită "flash" content) ---
 app.use((req, res, next) => {
-    const protectedRoutes = ['/', '/index.html', '/history.html', '/profile.html'];
+    const protectedRoutes = ['/', '/index.html', '/invoice.html', '/history.html', '/profile.html'];
     if (protectedRoutes.includes(req.path)) {
         if (!req.session.user) {
             return res.redirect('/login.html');

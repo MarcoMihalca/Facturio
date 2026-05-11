@@ -1,447 +1,724 @@
-// ============ AUTENTIFICARE ============
-// ============ AUTENTIFICARE ============
-const cachedUser = sessionStorage.getItem('facturio_user');
-if (cachedUser) document.getElementById('displayUser').textContent = cachedUser;
+// ============ CONFIG & GLOBALS ============
+let allInvoices = [];
+let dashboardAnalytics = { topProducts: [] };
 
-fetch('/api/me')
-    .then(r => { if (!r.ok) window.location.href = '/login.html'; return r.json(); })
-    .then(data => { 
-        if (data.username) {
-            sessionStorage.setItem('facturio_user', data.username);
-            document.getElementById('displayUser').textContent = data.username; 
-        }
-        fetch('/api/avatar').then(res => {
-            if (res.ok) {
-                const avatarEl = document.querySelector('.user-avatar');
-                const v = localStorage.getItem('avatar_v') || '1';
-                if (avatarEl) avatarEl.innerHTML = `<img src="/api/avatar?v=${v}" alt="Avatar">`;
-            }
-        });
-    })
-    .catch(() => window.location.href = '/login.html');
+let revenueChartInstance = null;
+let clientsChartInstance = null;
+let topProductsChartInstance = null;
+let netVatChartInstance = null;
+let yearComparisonChartInstance = null;
+let statusDistributionChartInstance = null;
 
-document.getElementById('btnLogout').addEventListener('click', async () => {
-    await fetch('/api/logout', { method: 'POST' });
-    window.location.href = '/login.html';
-});
+// Extrage preferintele utilizatorului
+const prefTopClients = parseInt(localStorage.getItem('dashboardTopClients')) || 5;
+const prefRecentInvoices = parseInt(localStorage.getItem('dashboardRecentInvoices')) || 5;
+let prefRevenueType = localStorage.getItem('dashboardRevenueType') || 'line';
+let prefClientsType = localStorage.getItem('dashboardClientsType') || 'doughnut';
+let prefTopProductsType = localStorage.getItem('dashboardTopProductsType') || 'bar';
+let prefNetVatType = localStorage.getItem('dashboardNetVatType') || 'doughnut';
+let prefYearComparisonType = localStorage.getItem('dashboardYearComparisonType') || 'bar';
+let prefStatusDistributionType = localStorage.getItem('dashboardStatusDistributionType') || 'pie';
 
-// ============ DATE IMPLICITE ============
-const today = new Date();
-document.getElementById('dataEmitere').value = today.toISOString().split('T')[0];
-const scadenta = new Date(today);
-scadenta.setDate(scadenta.getDate() + 30);
-document.getElementById('dataScadenta').value = scadenta.toISOString().split('T')[0];
-
-// Verificăm istoricul pentru a seta următorul număr de factură (Auto-increment)
-fetch('/api/invoices')
-    .then(r => r.json())
-    .then(invoices => {
-        if (invoices && invoices.length > 0) {
-            const numbers = invoices.map(inv => parseInt(inv.numar)).filter(n => !isNaN(n));
-            if (numbers.length > 0) {
-                const maxNum = Math.max(...numbers);
-                document.getElementById('numarFact').value = String(maxNum + 1).padStart(4, '0');
-            } else {
-                document.getElementById('numarFact').value = '0001';
-            }
-        } else {
-            document.getElementById('numarFact').value = '0001';
-        }
-        if (window.updatePreview) window.updatePreview();
-    })
-    .catch(() => {
-        document.getElementById('numarFact').value = '0001';
-    });
-
-// ============ TOAST ============
-function showToast(message, type = 'success') {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.className = `toast show ${type}`;
-    setTimeout(() => { toast.classList.remove('show'); }, 3000);
-}
-
-// ============ LOGO UPLOAD ============
-const logoInput = document.getElementById('logoInput');
-const btnRemoveLogo = document.getElementById('btnRemoveLogo');
-const logoPreview = document.getElementById('logoPreview');
-
-// Verifică dacă există logo deja
-fetch('/api/logo').then(r => {
-    if (r.ok) {
-        const v = localStorage.getItem('logo_v') || '1';
-        logoPreview.innerHTML = `<img src="/api/logo?v=${v}" alt="Logo Temporar">`;
-        btnRemoveLogo.style.display = 'inline-flex';
-    } else {
-        // Caută logo standard dacă nu există unul temporar
-        fetch('/api/standard-logo').then(r2 => {
-            if (r2.ok) {
-                const v2 = localStorage.getItem('std_logo_v') || '1';
-                logoPreview.innerHTML = `<img src="/api/standard-logo?v=${v2}" alt="Logo Standard">`;
-                // Nu arătăm btnRemoveLogo pentru cel standard, acesta se gestionează din Profil
-            }
-        });
-    }
-});
-
-logoInput.addEventListener('change', async (e) => {
-    if (!e.target.files[0]) return;
-    const formData = new FormData();
-    formData.append('logo', e.target.files[0]);
-
-    try {
-        const res = await fetch('/api/upload-logo', { method: 'POST', body: formData });
-        const data = await res.json();
-        if (res.ok) {
-            const v = Date.now();
-            localStorage.setItem('logo_v', v);
-            logoPreview.innerHTML = `<img src="${data.path}?v=${v}" alt="Logo">`;
-            btnRemoveLogo.style.display = 'inline-flex';
-            showToast('Logo încărcat cu succes!');
-            if (window.updatePreview) window.updatePreview();
-        } else {
-            showToast(data.message, 'error');
-        }
-    } catch (err) {
-        showToast('Eroare la încărcare.', 'error');
-    }
-});
-
-btnRemoveLogo.addEventListener('click', async () => {
-    try {
-        const res = await fetch('/api/logo', { method: 'DELETE' });
-        if (res.ok) {
-            logoPreview.innerHTML = `<span class="logo-placeholder">🖼️</span><span class="logo-text">Logo companie</span>`;
-            btnRemoveLogo.style.display = 'none';
-            logoInput.value = '';
-            showToast('Logo șters.');
-            if (window.updatePreview) window.updatePreview();
-        }
-    } catch (err) {
-        showToast('Eroare la ștergere.', 'error');
-    }
-});
-
-// ============ TABEL PRODUSE ============
-let rowCounter = 0;
-
-function addProductRow(data = {}) {
-    rowCounter++;
-    const tbody = document.getElementById('productRows');
-    const tr = document.createElement('tr');
-    tr.id = `row-${rowCounter}`;
-    tr.innerHTML = `
-        <td>
-            <input type="text" name="denumire" placeholder="Denumire produs" value="${data.denumire || ''}" required>
-            <textarea name="descriere" class="item-desc" placeholder="Descriere suplimentară (opțional)" rows="1">${data.descriere || ''}</textarea>
-        </td>
-        <td>
-            <select name="um">
-                <option value="buc" ${data.um === 'buc' ? 'selected' : ''}>buc</option>
-                <option value="kg" ${data.um === 'kg' ? 'selected' : ''}>kg</option>
-                <option value="l" ${data.um === 'l' ? 'selected' : ''}>l</option>
-                <option value="m" ${data.um === 'm' ? 'selected' : ''}>m</option>
-                <option value="mp" ${data.um === 'mp' ? 'selected' : ''}>mp</option>
-                <option value="ore" ${data.um === 'ore' ? 'selected' : ''}>ore</option>
-                <option value="set" ${data.um === 'set' ? 'selected' : ''}>set</option>
-            </select>
-        </td>
-        <td>
-            <input type="number" name="cantitate" min="0.01" step="0.01" value="${data.cantitate || 1}" required>
-        </td>
-        <td>
-            <input type="number" name="pretUnitar" min="0" step="0.01" value="${data.pretUnitar || ''}" placeholder="0.00" required>
-        </td>
-        <td style="display: flex; gap: 4px; align-items: center;">
-            <select name="tvaPercentSelect" onchange="window.handleTvaChange(this)">
-                <option value="19" ${data.tvaPercent === 19 || data.tvaPercent === undefined ? 'selected' : ''}>19%</option>
-                <option value="9" ${data.tvaPercent === 9 ? 'selected' : ''}>9%</option>
-                <option value="5" ${data.tvaPercent === 5 ? 'selected' : ''}>5%</option>
-                <option value="0" ${data.tvaPercent === 0 ? 'selected' : ''}>0%</option>
-                <option value="custom" ${data.tvaPercent !== undefined && ![0, 5, 9, 19].includes(parseFloat(data.tvaPercent)) ? 'selected' : ''}>Custom</option>
-            </select>
-            <input type="number" name="tvaPercentCustom" min="0" step="0.1" placeholder="%" 
-                   style="display: ${data.tvaPercent !== undefined && ![0, 5, 9, 19].includes(parseFloat(data.tvaPercent)) ? 'block' : 'none'}; width: 60px;" 
-                   value="${![0, 5, 9, 19].includes(parseFloat(data.tvaPercent)) ? data.tvaPercent : ''}">
-        </td>
-        <td class="row-total" id="rowTotal-${rowCounter}">0.00</td>
-        <td>
-            <button type="button" class="btn-remove-row" onclick="removeRow('row-${rowCounter}')">✕</button>
-        </td>
-    `;
-    tbody.appendChild(tr);
-
-    tr.querySelectorAll('input, select, textarea').forEach(el => {
-        el.addEventListener('input', () => {
-            recalculate();
-            if (window.updatePreview) window.updatePreview();
-        });
-    });
-
-    recalculate();
-}
-
-function removeRow(id) {
-    const tbody = document.getElementById('productRows');
-    if (tbody.children.length <= 1) return;
-    document.getElementById(id).remove();
-    recalculate();
-    if (window.updatePreview) window.updatePreview();
-}
-
-// Handler pentru Custom TVA
-window.handleTvaChange = function(selectEl) {
-    const customInput = selectEl.nextElementSibling;
-    if (selectEl.value === 'custom') {
-        customInput.style.display = 'block';
-        customInput.focus();
-    } else {
-        customInput.style.display = 'none';
-    }
-    recalculate();
-    if (window.updatePreview) window.updatePreview();
+const DASHBOARD_WIDGET_DEFAULTS = {
+    'card-total-incasari': true,
+    'card-total-facturi': true,
+    'card-total-tva': true,
+    'card-top-client': true,
+    'card-revenue-chart': true,
+    'card-clients-chart': true,
+    'card-top-products-chart': true,
+    'card-net-vat-chart': true,
+    'card-year-comparison-chart': true,
+    'card-status-distribution-chart': true,
+    'card-recent-invoices': true
 };
 
-// TVA Toggle
-const tvaToggle = document.getElementById('pretCuTVA');
-const tvaToggleWrapper = document.getElementById('tvaToggleWrapper');
-const tvaToggleHint = document.getElementById('tvaToggleHint');
+const MONTH_NAMES = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun', 'Iul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-tvaToggle.addEventListener('change', () => {
-    if (tvaToggle.checked) {
-        tvaToggleWrapper.classList.add('active');
-        tvaToggleHint.textContent = 'TVA-ul va fi extras din prețul introdus';
-    } else {
-        tvaToggleWrapper.classList.remove('active');
-        tvaToggleHint.textContent = 'TVA-ul va fi adăugat la prețul introdus';
-    }
-    recalculate();
-    if (window.updatePreview) window.updatePreview();
-});
-
-// Calcul totaluri
-function recalculate() {
-    let subtotal = 0;
-    let totalTVA = 0;
-    const inclTVA = tvaToggle.checked;
-
-    const rows = document.querySelectorAll('#productRows tr');
-    rows.forEach(row => {
-        const cantitate = parseFloat(row.querySelector('[name="cantitate"]').value) || 0;
-        const pretUnitar = parseFloat(row.querySelector('[name="pretUnitar"]').value) || 0;
-        
-        let tvaPercent = 0;
-        const tvaSelectOption = row.querySelector('[name="tvaPercentSelect"]').value;
-        if (tvaSelectOption === 'custom') {
-            tvaPercent = parseFloat(row.querySelector('[name="tvaPercentCustom"]').value) || 0;
-        } else {
-            tvaPercent = parseFloat(tvaSelectOption) || 0;
-        }
-
-        let valoareFaraTVA, tva;
-        if (inclTVA) {
-            const totalBrut = cantitate * pretUnitar;
-            valoareFaraTVA = totalBrut / (1 + tvaPercent / 100);
-            tva = totalBrut - valoareFaraTVA;
-        } else {
-            valoareFaraTVA = cantitate * pretUnitar;
-            tva = valoareFaraTVA * (tvaPercent / 100);
-        }
-
-        subtotal += valoareFaraTVA;
-        totalTVA += tva;
-
-        const totalCell = row.querySelector('.row-total');
-        if (totalCell) {
-            totalCell.textContent = (valoareFaraTVA + tva).toFixed(2);
-        }
-    });
-
-    const total = subtotal + totalTVA;
-    document.getElementById('subtotalDisplay').textContent = `${subtotal.toFixed(2)} RON`;
-    document.getElementById('tvaDisplay').textContent = `${totalTVA.toFixed(2)} RON`;
-    document.getElementById('totalDisplay').textContent = `${total.toFixed(2)} RON`;
+function toNumber(value) {
+    return Number.parseFloat(value) || 0;
 }
 
-addProductRow();
-document.getElementById('btnAddRow').addEventListener('click', () => addProductRow());
+function formatCurrency(value) {
+    return `${toNumber(value).toFixed(2)} RON`;
+}
 
-// ============ COLECTARE PAYLOAD ============
-function gatherPayload() {
-    const produse = [];
-    document.querySelectorAll('#productRows tr').forEach(row => {
-        let tvaPercent = 0;
-        const tvaSelectOption = row.querySelector('[name="tvaPercentSelect"]').value;
-        if (tvaSelectOption === 'custom') {
-            tvaPercent = parseFloat(row.querySelector('[name="tvaPercentCustom"]').value) || 0;
-        } else {
-            tvaPercent = parseFloat(tvaSelectOption) || 0;
-        }
+function toDateOnly(value) {
+    const date = new Date(value);
+    date.setHours(0, 0, 0, 0);
+    return date;
+}
 
-        produse.push({
-            denumire: row.querySelector('[name="denumire"]').value,
-            descriere: row.querySelector('[name="descriere"]').value,
-            um: row.querySelector('[name="um"]').value,
-            cantitate: parseFloat(row.querySelector('[name="cantitate"]').value) || 0,
-            pretUnitar: parseFloat(row.querySelector('[name="pretUnitar"]').value) || 0,
-            tvaPercent: tvaPercent,
-        });
-    });
+function getInvoiceStatus(invoice) {
+    const today = toDateOnly(new Date());
 
-    return {
-        serie: document.getElementById('serieFact').value,
-        numar: document.getElementById('numarFact').value,
-        dataEmitere: document.getElementById('dataEmitere').value,
-        dataScadenta: document.getElementById('dataScadenta').value,
-        furnizor: {
-            nume: document.getElementById('furnNume').value,
-            cui: document.getElementById('furnCUI').value,
-            regCom: document.getElementById('furnRegCom').value,
-            adresa: document.getElementById('furnAdresa').value,
-            iban: document.getElementById('furnIBAN').value,
-            banca: document.getElementById('furnBanca').value,
-        },
-        client: {
-            nume: document.getElementById('clientNume').value,
-            cui: document.getElementById('clientCUI').value,
-            regCom: document.getElementById('clientRegCom').value,
-            adresa: document.getElementById('clientAdresa').value,
-            email: document.getElementById('clientEmail').value,
-        },
-        produse,
-        pretCuTVA: document.getElementById('pretCuTVA').checked,
+    if (!invoice.data_scadenta) {
+        return 'Fara scadenta';
+    }
+
+    const dueDate = toDateOnly(invoice.data_scadenta);
+
+    if (dueDate < today) {
+        return 'Intarziata';
+    }
+
+    if (dueDate.getTime() === today.getTime()) {
+        return 'Scadenta azi';
+    }
+
+    return 'In termen';
+}
+
+function getStatusBadgeHtml(status) {
+    const badges = {
+        'In termen': 'background: rgba(34,197,94,0.15); color: #22c55e;',
+        'Scadenta azi': 'background: rgba(245,158,11,0.18); color: #f59e0b;',
+        'Intarziata': 'background: rgba(239,68,68,0.15); color: #ef4444;',
+        'Fara scadenta': 'background: rgba(148,163,184,0.16); color: #94a3b8;'
     };
+
+    const style = badges[status] || badges['Fara scadenta'];
+    return `<span style="${style} padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${status}</span>`;
 }
 
-// Salvează factura în istoric (în DB)
-async function saveToHistory(payload) {
+function getDashboardWidgetVisibility() {
+    let parsed = {};
+
     try {
-        await fetch('/api/invoices', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-    } catch (e) {
-        console.error('Nu am putut salva factura în istoric', e);
+        parsed = JSON.parse(localStorage.getItem('dashboardWidgetVisibility') || '{}');
+    } catch (error) {
+        parsed = {};
     }
+
+    return { ...DASHBOARD_WIDGET_DEFAULTS, ...parsed };
 }
 
-// ============ DESCARCĂ PDF ============
-document.getElementById('invoiceForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const payload = gatherPayload();
+function applyDashboardWidgetVisibility() {
+    const visibility = getDashboardWidgetVisibility();
 
-    const btn = document.getElementById('btnGenerate');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<span>⏳ Se generează...</span>';
-
-    try {
-        await saveToHistory(payload);
-
-        const res = await fetch('/generate-pdf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `factura_${payload.serie}${payload.numar}.pdf`;
-        a.click();
-        window.URL.revokeObjectURL(url);
-
-        localStorage.setItem('facturio_lastNumber', parseInt(payload.numar));
-        showToast('Document PDF descărcat!');
-    } catch (err) {
-        showToast('Eroare la generarea PDF.', 'error');
-    } finally {
-        btn.innerHTML = originalText;
-    }
-});
-
-// ============ EXPORT XML E-FACTURA ============
-document.getElementById('btnExportXml').addEventListener('click', async () => {
-    if (!document.getElementById('invoiceForm').checkValidity()) {
-        document.getElementById('invoiceForm').reportValidity();
-        return;
-    }
-
-    const payload = gatherPayload();
-    const btn = document.getElementById('btnExportXml');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<span>⏳ Se exportă...</span>';
-
-    try {
-        await saveToHistory(payload);
-
-        const res = await fetch('/api/export-xml', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `efactura_${payload.serie}${payload.numar}.xml`;
-        a.click();
-        window.URL.revokeObjectURL(url);
-        
-        showToast('XML exportat cu succes!');
-    } catch (err) {
-        showToast('Eroare la exportul XML.', 'error');
-    } finally {
-        btn.innerHTML = originalText;
-    }
-});
-
-// ============ TRIMITE EMAIL ============
-document.getElementById('btnSendEmail').addEventListener('click', async () => {
-    if (!document.getElementById('invoiceForm').checkValidity()) {
-        document.getElementById('invoiceForm').reportValidity();
-        return;
-    }
-
-    const payload = gatherPayload();
-    if (!payload.client.email) {
-        showToast('Completează adresa de email a clientului!', 'error');
-        document.getElementById('clientEmail').focus();
-        return;
-    }
-
-    const btn = document.getElementById('btnSendEmail');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<span>⏳ Se trimite...</span>';
-
-    try {
-        await saveToHistory(payload);
-
-        const res = await fetch('/api/send-invoice', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: payload.client.email, invoiceData: payload }),
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-            showToast(data.message);
-        } else {
-            showToast(data.message, 'error');
-        }
-    } catch (err) {
-        showToast('Eroare rețea.', 'error');
-    } finally {
-        btn.innerHTML = originalText;
-    }
-});
-
-// ============ EVENIMENTE PREVIEW ============
-const inputs = document.querySelectorAll('#invoiceForm input');
-inputs.forEach(input => {
-    input.addEventListener('input', () => {
-        if (window.updatePreview) window.updatePreview();
+    Object.keys(DASHBOARD_WIDGET_DEFAULTS).forEach((widgetId) => {
+        const element = document.getElementById(widgetId);
+        if (!element) return;
+        element.style.display = visibility[widgetId] === false ? 'none' : '';
     });
+}
+
+function setupChartTypeToggles() {
+    const toggleConfigs = [
+        {
+            toggleId: '#revenueTypeToggle',
+            getType: () => prefRevenueType,
+            setType: (value) => {
+                prefRevenueType = value;
+                localStorage.setItem('dashboardRevenueType', value);
+            }
+        },
+        {
+            toggleId: '#clientsTypeToggle',
+            getType: () => prefClientsType,
+            setType: (value) => {
+                prefClientsType = value;
+                localStorage.setItem('dashboardClientsType', value);
+            }
+        },
+        {
+            toggleId: '#topProductsTypeToggle',
+            getType: () => prefTopProductsType,
+            setType: (value) => {
+                prefTopProductsType = value;
+                localStorage.setItem('dashboardTopProductsType', value);
+            }
+        },
+        {
+            toggleId: '#netVatTypeToggle',
+            getType: () => prefNetVatType,
+            setType: (value) => {
+                prefNetVatType = value;
+                localStorage.setItem('dashboardNetVatType', value);
+            }
+        },
+        {
+            toggleId: '#yearComparisonTypeToggle',
+            getType: () => prefYearComparisonType,
+            setType: (value) => {
+                prefYearComparisonType = value;
+                localStorage.setItem('dashboardYearComparisonType', value);
+            }
+        },
+        {
+            toggleId: '#statusDistributionTypeToggle',
+            getType: () => prefStatusDistributionType,
+            setType: (value) => {
+                prefStatusDistributionType = value;
+                localStorage.setItem('dashboardStatusDistributionType', value);
+            }
+        }
+    ];
+
+    toggleConfigs.forEach((config) => {
+        const buttons = document.querySelectorAll(`${config.toggleId} .chart-type-btn`);
+        buttons.forEach((btn) => {
+            if (btn.dataset.type === config.getType()) btn.classList.add('active');
+            else btn.classList.remove('active');
+
+            btn.addEventListener('click', (e) => {
+                const type = e.currentTarget.dataset.type;
+                config.setType(type);
+                buttons.forEach((b) => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                renderCharts();
+            });
+        });
+    });
+}
+
+async function loadInvoices() {
+    try {
+        const res = await fetch('/api/invoices');
+        if (res.ok) {
+            allInvoices = await res.json();
+            return;
+        }
+        console.error('Failed to load invoices');
+    } catch (e) {
+        console.error('Error fetching invoices:', e);
+    }
+
+    allInvoices = [];
+}
+
+async function loadDashboardAnalytics() {
+    try {
+        const res = await fetch('/api/dashboard/analytics');
+        if (res.ok) {
+            dashboardAnalytics = await res.json();
+            return;
+        }
+        console.error('Failed to load dashboard analytics');
+    } catch (e) {
+        console.error('Error fetching dashboard analytics:', e);
+    }
+
+    dashboardAnalytics = { topProducts: [] };
+}
+
+// ============ INITIALIZARE ============
+async function initDashboard() {
+    await Promise.all([loadInvoices(), loadDashboardAnalytics()]);
+
+    document.getElementById('recentInvoicesSubtitle').textContent = `Ultimele ${prefRecentInvoices} facturi generate`;
+    applyDashboardWidgetVisibility();
+
+    renderStats();
+    renderCharts();
+    renderRecentInvoices();
+}
+
+// ============ STATS ROW ============
+function renderStats() {
+    const period = document.getElementById('statPeriodToggle').value;
+    const now = new Date();
+    const currMonth = now.getMonth();
+    const currYear = now.getFullYear();
+
+    let totalIncasari = 0;
+    let facturiEmise = 0;
+    let totalTva = 0;
+
+    const clientTotals = {};
+
+    allInvoices.forEach((inv) => {
+        const date = new Date(inv.data_emitere);
+        let inPeriod = false;
+
+        if (period === 'month') {
+            inPeriod = date.getMonth() === currMonth && date.getFullYear() === currYear;
+        } else if (period === '3months') {
+            const limit = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+            inPeriod = date >= limit;
+        } else if (period === '6months') {
+            const limit = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+            inPeriod = date >= limit;
+        } else if (period === 'year') {
+            inPeriod = date.getFullYear() === currYear;
+        }
+
+        if (!inPeriod) return;
+
+        facturiEmise += 1;
+
+        const total = toNumber(inv.total);
+        totalIncasari += total;
+        totalTva += toNumber(inv.total_tva);
+
+        const clientName = inv.client_nume || 'Necunoscut';
+        if (!clientTotals[clientName]) clientTotals[clientName] = 0;
+        clientTotals[clientName] += total;
+    });
+
+    let bestClient = '-';
+    let maxTotal = 0;
+
+    for (const [name, value] of Object.entries(clientTotals)) {
+        if (value > maxTotal) {
+            maxTotal = value;
+            bestClient = name;
+        }
+    }
+
+    document.getElementById('dashTotalIncasari').textContent = formatCurrency(totalIncasari);
+    document.getElementById('dashTotalFacturi').textContent = facturiEmise;
+    document.getElementById('dashTotalTva').textContent = formatCurrency(totalTva);
+    document.getElementById('dashTopClient').textContent = bestClient;
+}
+
+document.getElementById('statPeriodToggle').addEventListener('change', () => {
+    renderStats();
+    renderCharts();
 });
+
+// ============ CHARTS ============
+function renderCharts() {
+    const style = getComputedStyle(document.body);
+    const textColor = style.getPropertyValue('--text-main').trim() || '#334155';
+    const gridColor = style.getPropertyValue('--border-color').trim() || '#e2e8f0';
+
+    Chart.defaults.color = textColor;
+    Chart.defaults.font.family = "'Inter', sans-serif";
+
+    renderRevenueChart(gridColor);
+    renderClientsChart(gridColor);
+    renderTopProductsChart(gridColor);
+    renderNetVsVatChart(gridColor);
+    renderYearComparisonChart(gridColor);
+    renderStatusDistributionChart(gridColor);
+}
+
+function renderRevenueChart(gridColor) {
+    const revCanvas = document.getElementById('revenueChart');
+    if (!revCanvas) return;
+
+    const revCtx = revCanvas.getContext('2d');
+    const now = new Date();
+    const labels = [];
+    const monthlyTotals = [0, 0, 0, 0, 0, 0];
+
+    for (let i = 5; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        labels.push(`${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`);
+    }
+
+    allInvoices.forEach((inv) => {
+        const invoiceDate = new Date(inv.data_emitere);
+
+        for (let i = 0; i < 6; i++) {
+            const targetMonth = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+            if (
+                invoiceDate.getMonth() === targetMonth.getMonth() &&
+                invoiceDate.getFullYear() === targetMonth.getFullYear()
+            ) {
+                monthlyTotals[i] += toNumber(inv.total);
+            }
+        }
+    });
+
+    if (revenueChartInstance) revenueChartInstance.destroy();
+
+    const gradient = revCtx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
+    gradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
+
+    revenueChartInstance = new Chart(revCtx, {
+        type: prefRevenueType,
+        data: {
+            labels,
+            datasets: [{
+                label: 'Incasari (RON)',
+                data: monthlyTotals,
+                borderColor: '#6366f1',
+                backgroundColor: prefRevenueType === 'bar' ? '#6366f1' : gradient,
+                borderWidth: 3,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#6366f1',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: gridColor, drawBorder: false } },
+                x: { grid: { display: false, drawBorder: false } }
+            }
+        }
+    });
+}
+
+function renderClientsChart(gridColor) {
+    const clientCanvas = document.getElementById('clientsChart');
+    if (!clientCanvas) return;
+
+    const clientCtx = clientCanvas.getContext('2d');
+    const clientTotals = {};
+
+    allInvoices.forEach((inv) => {
+        const name = inv.client_nume || 'Necunoscut';
+        if (!clientTotals[name]) clientTotals[name] = 0;
+        clientTotals[name] += toNumber(inv.total);
+    });
+
+    const sortedClients = Object.entries(clientTotals).sort((a, b) => b[1] - a[1]);
+    const topClients = sortedClients.slice(0, prefTopClients);
+
+    let othersTotal = 0;
+    if (sortedClients.length > prefTopClients) {
+        othersTotal = sortedClients.slice(prefTopClients).reduce((sum, item) => sum + item[1], 0);
+    }
+
+    const labels = topClients.map((c) => c[0]);
+    const data = topClients.map((c) => c[1]);
+
+    if (othersTotal > 0) {
+        labels.push('Altii');
+        data.push(othersTotal);
+    }
+
+    if (labels.length === 0) {
+        labels.push('Fara date');
+        data.push(1);
+    }
+
+    if (clientsChartInstance) clientsChartInstance.destroy();
+
+    const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#0ea5e9', '#64748b'];
+
+    clientsChartInstance = new Chart(clientCtx, {
+        type: prefClientsType,
+        data: {
+            labels,
+            datasets: [{
+                label: 'Total Facturat',
+                data,
+                backgroundColor: colors,
+                borderWidth: prefClientsType === 'bar' ? 1 : 0,
+                borderColor: prefClientsType === 'bar' ? '#334155' : undefined,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: prefClientsType === 'doughnut' ? '70%' : undefined,
+            plugins: {
+                legend: {
+                    position: prefClientsType === 'bar' ? 'top' : 'bottom',
+                    display: prefClientsType !== 'bar',
+                    labels: {
+                        boxWidth: 12,
+                        padding: 15
+                    }
+                }
+            },
+            scales: prefClientsType === 'bar'
+                ? {
+                    y: { beginAtZero: true, grid: { color: gridColor } },
+                    x: { grid: { display: false } }
+                }
+                : {}
+        }
+    });
+}
+
+function renderTopProductsChart(gridColor) {
+    const topProductsCanvas = document.getElementById('topProductsChart');
+    if (!topProductsCanvas) return;
+
+    const topProductsCtx = topProductsCanvas.getContext('2d');
+    const products = Array.isArray(dashboardAnalytics.topProducts) ? dashboardAnalytics.topProducts : [];
+
+    const labels = products.map((p) => (p.name || 'Necunoscut').slice(0, 28));
+    const totals = products.map((p) => toNumber(p.totalAmount));
+    const quantities = products.map((p) => toNumber(p.totalQty));
+
+    if (labels.length === 0) {
+        labels.push('Fara date');
+        totals.push(0);
+        quantities.push(0);
+    }
+
+    if (topProductsChartInstance) topProductsChartInstance.destroy();
+
+    const palette = ['#0ea5e9', '#38bdf8', '#60a5fa', '#6366f1', '#8b5cf6', '#ec4899', '#22c55e', '#f59e0b'];
+    const isBarType = prefTopProductsType === 'bar';
+
+    topProductsChartInstance = new Chart(topProductsCtx, {
+        type: prefTopProductsType,
+        data: {
+            labels,
+            datasets: [{
+                label: 'Total facturat (RON)',
+                data: totals,
+                backgroundColor: isBarType ? 'rgba(14, 165, 233, 0.75)' : labels.map((_, i) => palette[i % palette.length]),
+                borderColor: 'rgba(14, 165, 233, 1)',
+                borderWidth: 1,
+                borderRadius: isBarType ? 8 : 0
+            }]
+        },
+        options: {
+            indexAxis: isBarType ? 'y' : 'x',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: !isBarType, position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        afterLabel: (ctx) => `Cantitate vanduta: ${quantities[ctx.dataIndex].toFixed(2)}`
+                    }
+                }
+            },
+            scales: isBarType
+                ? {
+                    x: { beginAtZero: true, grid: { color: gridColor } },
+                    y: { grid: { display: false } }
+                }
+                : {}
+        }
+    });
+}
+
+function renderNetVsVatChart(gridColor) {
+    const netVatCanvas = document.getElementById('netVsVatChart');
+    if (!netVatCanvas) return;
+
+    const netVatCtx = netVatCanvas.getContext('2d');
+
+    const netTotal = allInvoices.reduce((sum, inv) => sum + toNumber(inv.subtotal), 0);
+    const vatTotal = allInvoices.reduce((sum, inv) => sum + toNumber(inv.total_tva), 0);
+
+    const hasData = netTotal > 0 || vatTotal > 0;
+    const data = hasData ? [netTotal, vatTotal] : [1, 0];
+
+    if (netVatChartInstance) netVatChartInstance.destroy();
+
+    const isBarType = prefNetVatType === 'bar';
+
+    netVatChartInstance = new Chart(netVatCtx, {
+        type: prefNetVatType,
+        data: {
+            labels: hasData ? ['Net', 'TVA'] : ['Fara date', 'TVA'],
+            datasets: [{
+                data,
+                backgroundColor: ['#3b82f6', '#f59e0b'],
+                borderWidth: isBarType ? 1 : 0,
+                borderRadius: isBarType ? 8 : 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: prefNetVatType === 'doughnut' ? '68%' : undefined,
+            plugins: {
+                legend: { position: 'bottom' }
+            },
+            scales: isBarType
+                ? {
+                    y: { beginAtZero: true, grid: { color: gridColor } },
+                    x: { grid: { display: false } }
+                }
+                : {}
+        }
+    });
+}
+
+function renderYearComparisonChart(gridColor) {
+    const yearComparisonCanvas = document.getElementById('yearComparisonChart');
+    if (!yearComparisonCanvas) return;
+
+    const yearComparisonCtx = yearComparisonCanvas.getContext('2d');
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const lastYear = currentYear - 1;
+
+    const currentYearTotals = new Array(12).fill(0);
+    const lastYearTotals = new Array(12).fill(0);
+
+    allInvoices.forEach((inv) => {
+        const date = new Date(inv.data_emitere);
+        const month = date.getMonth();
+        const total = toNumber(inv.total);
+
+        if (date.getFullYear() === currentYear) {
+            currentYearTotals[month] += total;
+        } else if (date.getFullYear() === lastYear) {
+            lastYearTotals[month] += total;
+        }
+    });
+
+    if (yearComparisonChartInstance) yearComparisonChartInstance.destroy();
+
+    const isLineType = prefYearComparisonType === 'line';
+
+    yearComparisonChartInstance = new Chart(yearComparisonCtx, {
+        type: prefYearComparisonType,
+        data: {
+            labels: MONTH_NAMES,
+            datasets: [
+                {
+                    label: String(currentYear),
+                    data: currentYearTotals,
+                    backgroundColor: isLineType ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.78)',
+                    borderColor: 'rgba(99, 102, 241, 1)',
+                    borderRadius: isLineType ? 0 : 6,
+                    borderWidth: isLineType ? 3 : 1,
+                    fill: false,
+                    tension: 0.35,
+                    pointRadius: isLineType ? 3 : 0
+                },
+                {
+                    label: String(lastYear),
+                    data: lastYearTotals,
+                    backgroundColor: isLineType ? 'rgba(148, 163, 184, 0.2)' : 'rgba(148, 163, 184, 0.72)',
+                    borderColor: 'rgba(148, 163, 184, 1)',
+                    borderRadius: isLineType ? 0 : 6,
+                    borderWidth: isLineType ? 3 : 1,
+                    fill: false,
+                    tension: 0.35,
+                    pointRadius: isLineType ? 3 : 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: gridColor } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderStatusDistributionChart(gridColor) {
+    const statusCanvas = document.getElementById('statusDistributionChart');
+    if (!statusCanvas) return;
+
+    const statusCtx = statusCanvas.getContext('2d');
+    const counts = {
+        'In termen': 0,
+        'Scadenta azi': 0,
+        'Intarziata': 0,
+        'Fara scadenta': 0
+    };
+
+    allInvoices.forEach((inv) => {
+        const status = getInvoiceStatus(inv);
+        counts[status] = (counts[status] || 0) + 1;
+    });
+
+    const labels = [];
+    const data = [];
+
+    Object.entries(counts).forEach(([status, value]) => {
+        if (value > 0) {
+            labels.push(status);
+            data.push(value);
+        }
+    });
+
+    if (labels.length === 0) {
+        labels.push('Fara date');
+        data.push(1);
+    }
+
+    if (statusDistributionChartInstance) statusDistributionChartInstance.destroy();
+
+    const isBarType = prefStatusDistributionType === 'bar';
+
+    statusDistributionChartInstance = new Chart(statusCtx, {
+        type: prefStatusDistributionType,
+        data: {
+            labels,
+            datasets: [{
+                data,
+                backgroundColor: ['#22c55e', '#f59e0b', '#ef4444', '#94a3b8'],
+                borderRadius: isBarType ? 8 : 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            },
+            cutout: prefStatusDistributionType === 'doughnut' ? '65%' : undefined,
+            scales: isBarType
+                ? {
+                    y: { beginAtZero: true, grid: { color: gridColor } },
+                    x: { grid: { display: false } }
+                }
+                : {}
+        }
+    });
+}
+
+// ============ RECENT INVOICES ============
+function renderRecentInvoices() {
+    const tbody = document.getElementById('recentInvoicesRows');
+    const emptyState = document.getElementById('emptyState');
+    const tableWrapper = document.getElementById('tableWrapper');
+
+    if (allInvoices.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.style.display = 'block';
+        tableWrapper.style.display = 'none';
+        return;
+    }
+
+    emptyState.style.display = 'none';
+    tableWrapper.style.display = 'block';
+
+    const sorted = [...allInvoices].sort((a, b) => new Date(b.data_emitere) - new Date(a.data_emitere));
+    const recent = sorted.slice(0, prefRecentInvoices);
+
+    tbody.innerHTML = recent.map((inv) => {
+        const status = getInvoiceStatus(inv);
+        const statusHtml = getStatusBadgeHtml(status);
+
+        const date = new Date(inv.data_emitere);
+        const dateStr = date.toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+        return `
+        <tr>
+            <td><a href="/history.html" style="color: #818cf8; text-decoration: none; font-weight: 500;">${inv.serie}${inv.numar}</a></td>
+            <td>${inv.client_nume || '—'}</td>
+            <td>${dateStr}</td>
+            <td><strong>${formatCurrency(inv.total)}</strong></td>
+            <td>${statusHtml}</td>
+        </tr>
+        `;
+    }).join('');
+}
+
+// Listen for theme changes to re-render charts with correct colors
+const observer = new MutationObserver(() => {
+    if (
+        revenueChartInstance ||
+        clientsChartInstance ||
+        topProductsChartInstance ||
+        netVatChartInstance ||
+        yearComparisonChartInstance ||
+        statusDistributionChartInstance
+    ) {
+        renderCharts();
+    }
+});
+
+observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+setupChartTypeToggles();
+initDashboard();
